@@ -1,4 +1,15 @@
-Management and analysis of the NDVI and EVI products from MODIS
+# Management and analysis of the NDVI and EVI products from MODIS
+
+Version 6 MODIS data are downloaded for the MOD13Q1 and MYD13Q1 (vegetation indices) product from the Terra and Aqua satellites, respectively. [Note: only version 5 data can be found for Aqua satellite, Nov 2016]
+
+Websites for these data products are:
++ https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table/mod13q1_v006
++ https://lpdaac.usgs.gov/dataset_discovery/modis/modis_products_table/myd13q1
+
+## References
+[K. Didan. (2015). MOD13Q1 MODIS/Terra Vegetation Indices 16-Day L3 Global 250m SIN Grid V006. NASA EOSDIS Land Processes DAAC.] (https://doi.org/10.5067/MODIS/MOD13Q1.006)
+
+## Filenames
 
 **process_CORINE.R** reads in the CORINE ratser file for Europe and crops the data to be just Ireland
 
