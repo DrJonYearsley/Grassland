@@ -4,7 +4,7 @@ Management and analysis of the NDVI and EVI products from MODIS
 
 **process_MODIS.R** this is the main script for processing MODIS data. It performs the following steps:
 
-1. read in downloaded MODIS data (geoTIFF), 
+1. read in downloaded MODIS data (the MOD13Q1 product in geoTIFF format), 
 2. crop MODIS data to Ireland, 
 3. rescale NDVI and EVI to be on a scale 0-1
 4. remove poor quality pixels
