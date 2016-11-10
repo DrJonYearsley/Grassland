@@ -11,6 +11,8 @@
 #  7. reproject onto Irish grid (TM75)
 #  8. rescale extent so that grid aligns with hectads (to allow aggregation)
 #  9. saves the processed raster data for NDVI, EVI and the quality data
+
+# The final data that is saved to file will have a spatial resolution of approximately 250m
 #
 # Jon Yearsley Aug 2016
 
@@ -21,7 +23,7 @@ library(gdalUtils)
 rm(list=ls())
 setwd("/media/jon/3TB/jon/PeopleStuff/Resilience_MarkJack")
 
-scalingFactor = 0.0001
+scalingFactor = 0.0001 # Scale factor to apply to NDVI and EVI data from MODIS
 
 # Read in CORINE data
 corine = raster('./Data/CORINE_IE.grd')
