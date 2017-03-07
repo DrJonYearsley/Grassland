@@ -15,23 +15,45 @@
 # The final data that is saved to file will have a spatial resolution of approximately 250m
 #
 # Jon Yearsley Aug 2016
+#
+# Modified:
+# Jon and Paul: March 2017
+
+# Edited to not save the quality control flags from the analysis
 
 library(rgdal)
 library(raster)
 library(gdalUtils)
 
 rm(list=ls())
-setwd("/media/jon/3TB/jon/PeopleStuff/Resilience_MarkJack")
+#setwd("/Libraries/DATA/")
+
+# Directories containing the input and output MODIS data 
+inputDir = '../Data/MODIS/MODIS_ver6' #################### PAUL EDIT
+outputDir = 'C:/Users/3051675/DATA/GIS/source data/Ireland'#'./Data/MODIS/MODIS_ver6'
+outputSuffix = 'grassland'
+corineInclude = c(26)  # Specify corine codes to include (pasture = 18, natural grasslands=26, moors and heathland=27)
+
+
+
+corineInclude = c(26)  # Specify conrine codes to include (pasture = 18, natural grasslands=26, moors and heathland=27)
 
 scalingFactor = 0.0001 # Scale factor to apply to NDVI and EVI data from MODIS
 
 # Read in CORINE data
-corine = raster('./Data/CORINE_IE.grd')
+corine = raster('../Data/CORINE/CORINE_IE.grd')
 corine.crs = crs(corine)
 
 # Load MODIS data
-dates = list.files(path='./Data/MODIS/MOD13Q1.005/')
-hdf.files = list.files(pattern='.hdf$',recursive=T)
+hdf.files = list.files(path=inputDir,pattern='.hdf$',recursive=T)
+
+tmp=strsplit(hdf.files,'/')
+
+#satellite = array('Aqua', dim=length(hdf.files))
+#satellite[sapply(tmp, FUN=function(x){x[1]}, simplify=TRUE)=='MOLT'] = 'Terra'
+satellite<-array(sapply(tmp,'[',1),dim=length(hdf.files)) ####################PAUL EDIT
+
+dates = sapply(tmp, FUN=function(x){x[3]}, simplify=TRUE)
 r.date = strptime(dates, format = "%Y.%m.%d", tz = "")
 
 # Define extent of Irleand (roughly) in MODIS CRS
@@ -68,7 +90,7 @@ trim2 <- function(x,values=NA,out="matrix"){
 }
 
 # Read in Ireland coastline
-ie = readOGR(dsn='Data', layer='country')
+ie = readOGR(dsn='../Data/_Datasets covering whole island/country.shp', layer='country')
 ie.grid = spTransform(ie, CRS=CRS("+init=epsg:29903"))   # Transform to Irish Grid TM75
 
 # Define bounding box of irish coastline (rounded to the nearest hectad)
@@ -83,11 +105,11 @@ ie.raster = raster(ncol=(bb[2]-bb[1])/250, nrow=(bb[4]-bb[3])/250, extent(bb), c
 
 for (f in 1:length(hdf.files)) {
   # Read in the MODIS data and crop to Ireland 
-  sds <- get_subdatasets(hdf.files[f])
+  sds <- get_subdatasets(paste(inputDir,hdf.files[f],sep='/'))
   
   # An alternative approach to reading in the 
   # test <- readGDAL(sds[grep("250m 16 days NDVI", sds)],as.is=T)*scalingFactor
-
+  
   # These lines read in the individual wavelength bands. Used to check the scaling factor for ndvi and evi
   # ndvi is (nir-red)/(nir+red)
   #  red = crop(raster(sds[grep("250m 16 days red reflectance", sds)], as.is=T), ir)
@@ -98,18 +120,18 @@ for (f in 1:length(hdf.files)) {
   evi = crop(raster(sds[grep("250m 16 days EVI", sds)], as.is=T), ir)*scalingFactor^2
   QC = crop(raster(sds[grep("16 days pixel reliability",sds)]), ir)
   # Reliability, 0=good, 1=OK but use with care, 2=snow/icd, 3=cloudy,-1=no data 
-
+  
   # More detailed quality flag
-#  quality = crop(raster(sds[grep("16 days VI Quality",sds)]), ir)
+  #  quality = crop(raster(sds[grep("16 days VI Quality",sds)]), ir)
   
   # Keep only good quality data (reliability=0 or 1) and reproject onto Irish grid
   ndvi[QC<0 | QC>1] <- NA 
   evi[QC<0 | QC>1] <- NA
   
-
+  
   evi.lc = projectRaster(evi,crs=corine.crs) # Reproject onto CRS of CORINE raster data
   ndvi.lc = projectRaster(ndvi,crs=corine.crs) # Reproject onto CRS of CORINE raster data
-  QC.lc = projectRaster(QC,crs=corine.crs) # Reproject onto CRS of CORINE raster data
+  #  QC.lc = projectRaster(QC,crs=corine.crs) # Reproject onto CRS of CORINE raster data
   
   if (f==1) {
     corine_sync = raster::resample(corine,evi.lc, method='ngb', verbose=F) # Make CORINE the resolution of MODIS
@@ -120,32 +142,32 @@ for (f in 1:length(hdf.files)) {
   
   # Extract cells corresponding to pasture (code=18) in CORINE
   evi_pasture = evi.lc
-  evi_pasture[corine_sync!=18] <- NA
+  evi_pasture[!(corine_sync%in%corineInclude)] <- NA
   evi_pasture = crop(evi_pasture, crop_extent)
   evi_tmp = projectRaster(evi_pasture,crs=CRS("+init=epsg:29903"))   # Transform to Irish Grid TM75
   # Sync evi.grid with the ie.raster (i.e. rounded to nearest hectad)
   evi_grid = raster::resample(evi_tmp, ie.raster, method='bilinear')
   
   ndvi_pasture = ndvi.lc
-  ndvi_pasture[corine_sync!=18] <- NA
+  ndvi_pasture[!(corine_sync%in%corineInclude)] <- NA
   ndvi_pasture = crop(ndvi_pasture, crop_extent)
   ndvi_tmp = projectRaster(ndvi_pasture,crs=CRS("+init=epsg:29903"))   # Transform to Irish Grid TM75
   # Sync with the ie.raster (i.e. rounded to nearest hectad)
   ndvi_grid = raster::resample(ndvi_tmp, ie.raster, method='bilinear')
   
-  QC_pasture = QC.lc
-  QC_pasture[corine_sync!=18] <- NA
-  QC_pasture = crop(QC.lc, crop_extent)
-  QC_tmp = projectRaster(QC_pasture,crs=CRS("+init=epsg:29903"))   # Transform to Irish Grid TM75
-  # Sync with the ie.raster (i.e. rounded to nearest hectad)
-  QC_grid = raster::resample(QC_tmp, ie.raster, method='bilinear')
+  # QC_pasture = QC.lc
+  # QC_pasture[corine_sync!=18] <- NA
+  # QC_pasture = crop(QC.lc, crop_extent)
+  # QC_tmp = projectRaster(QC_pasture,crs=CRS("+init=epsg:29903"))   # Transform to Irish Grid TM75
+  # # Sync with the ie.raster (i.e. rounded to nearest hectad)
+  # QC_grid = raster::resample(QC_tmp, ie.raster, method='bilinear')
   
   # Write the rasters to a new file
-  fname.ndvi = paste('./Data/MODIS/NDVI_pasture_',format(r.date[f],"%Y_%m_%d"),sep='') 
-  fname.evi = paste('./Data/MODIS/EVI_pasture_',format(r.date[f],"%Y_%m_%d"),sep='') 
-  fname.qc = paste('./Data/MODIS/QC_pasture_',format(r.date[f],"%Y_%m_%d"),sep='') 
+  fname.ndvi = paste(outputDir,'/NDVI_',outputSuffix,'_',format(r.date[f],"%Y_%m_%d"),sep='') 
+  fname.evi = paste(outputDir,'/EVI_',outputSuffix,'_',format(r.date[f],"%Y_%m_%d"),sep='') 
+  #  fname.qc = paste(outputDir,'/QC_pasture_',format(r.date[f],"%Y_%m_%d"),sep='') 
   writeRaster(ndvi_grid,file=fname.ndvi,format='raster',overwrite=TRUE)
   writeRaster(evi_grid,file=fname.evi,format='raster',overwrite=TRUE)
-  writeRaster(QC_grid,file=fname.qc,format='raster',overwrite=TRUE)
+  #  writeRaster(QC_grid,file=fname.qc,format='raster',overwrite=TRUE)
 }
 
