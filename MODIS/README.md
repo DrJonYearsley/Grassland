@@ -30,3 +30,5 @@ The final data that is saved to file will have a spatial resolution of approxima
 **analyse_pasture_parallel.R** reads in the processed MODIS data (EVI and NDVI) for Ireland and calculates summary statistics (e.g. mean, variance, number of pixels) at a specified spatial scale. The script is set up to run on a cluster if necessary.
 
 **veg_index_view.R** reads in the data summaries from analyse_pasture_parallel.R and displays various graphics for the NDV/EVI data
+
+**utility_functions.R** some utility functions to crop rasters and display legends
