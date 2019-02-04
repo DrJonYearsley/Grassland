@@ -37,10 +37,6 @@ vasc.env$hetpast <- ifelse(vasc.env$dom50 == 'Heterogenous', 'H',
                            ifelse(vasc.env$dom50 == 'Pasture', 'P', 'N'))
 
 
-rm(corine.agg)
-
-
-
 
 ############################################################################
 ####### Productivity-diversity model for entire dataset - no habitat #######
