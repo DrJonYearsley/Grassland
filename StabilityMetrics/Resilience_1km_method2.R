@@ -20,7 +20,7 @@ modis.dates <- as.Date(modis.dates)
 ################ Resilience metric calculations #################
 
 ## index
-ind2 <- year>=2003 & year<=2017
+ind2 <- year>=2003 & year<=2019
 
 ##### Variability
 
