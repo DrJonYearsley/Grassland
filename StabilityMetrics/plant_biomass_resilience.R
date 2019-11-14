@@ -1,27 +1,34 @@
 #########################
 ## Grassland plant biomass resilience measures
 ## 
-## TODO:  - add control_i to control mean ratios
+## inputs:  - 'DATASET BIOMASS SOIL MOISTURE EXPERIMENT.csv'
+## outpus:  - resilience: a data frame with the ratio of plant biomass in each
+##              plot to the mean of plant biomass in control plots at the same 
+##              site and time step.
+## 
+## TODO:  
 ## 
 ## Willson Gaul, Lupe Leon-Sanchez, Hannah White
 ## created: 14 Nov 2019
 ## last modified: 14 Nov 2019
 ##########################
 rm(list = ls())
-# RM = repeated measurement
-# Can drop the final duplicate time and dry weight rm columns
+# RM means repeated measurement
+# Can drop the final duplicate time and dry weight rm columns that are in the 
+# csv file.
 
 # for TREATMENT, 1 = Drought, 0 = control
 
 # 8 plots per site, 5 sites per region, 4 regions, 7 time points
 
-setwd("~/Documents/UCD/Grassland_project/")
+setwd("~/Documents/Data_Analysis/UCD/Grassland/")
 
 library(Hmisc)
 library(tidyverse)
 
 BIOMASA <- read_csv("~/Dropbox/Grassland/Data/EMPIRICAL DATA FIELD EXPERIMENT/DATASET BIOMASS SOIL MOISTURE EXPERIMENT.csv")
 
+# drop duplicate columns
 BIOMASA <- BIOMASA[, colnames(BIOMASA) %nin% c("Time_1", "DRY WEIGHT RM_1")]
 
 BIOMASA$TREATMENT <- as.character(BIOMASA$TREATMENT)
@@ -58,7 +65,6 @@ calc_control_mean <- function(timestep, data, variable) {
 # calculate mean of control dry mass weights for all sites and time steps
 control_means <- lapply(unique(BIOMASA$Time), FUN = calc_control_mean, 
                         data = BIOMASA, variable = "DRY WEIGHT NON RM")
-names(control_means) <- unique(BIOMASA$Time)
 
 control_means <- bind_rows(control_means)
 ## end calculate control means ----------------------------------------------
@@ -66,31 +72,13 @@ control_means <- bind_rows(control_means)
 
 resilience <- left_join(resilience, control_means)
 
-#### Resistance -------------------------------------------------------------
+### Recovery & Resistance ------------------------------------------------------
 # group by Farm (equivalent to site) and Time, then calculate mean of controls 
 # in the Farm & Time groups as the demoninator in the resistance equation.
-# control_mean <- BIOMASA %>%
-#   filter(TREATMENT == "0" & Time == "Day.0") %>%
-#   select(site_ID, `DRY WEIGHT NON RM`) %>%
-#   group_by(site_ID) %>%
-#   mutate(control_mean_dry_weight_non_rm = mean(`DRY WEIGHT NON RM`, na.rm = T)) %>%
-#   select(-`DRY WEIGHT NON RM`) %>%
-#   unique()
-
-# calculate resistance at each plot
-# resist <- left_join(BIOMASA, control_means) %>%
-#   filter(TREATMENT == "1" & Time == "Day.0") %>%
-#   select(-`SOIL MOISTURE`, -`DRY WEIGHT RM`, -Farm, -Region) %>% 
-#   # group_by(site_ID) %>% 
-#   mutate(resistance = `DRY WEIGHT NON RM` / control_mean_dry_weight_non_rm) %>%
-#   select(-TREATMENT, -`DRY WEIGHT NON RM`)
 # 
-# resilience <- left_join(resilience, resist)
-### end resistance calculation -----------------------------------------------
+# We are using non-repeated measures of biomass
 
-### Recovery & Resistance ------------------------------------------------------
-## Use ratio at day 64 instead of rate?
-# For recovery, we are using non-repeated measures of biomass
+## For recovery, use ratio at day 64 instead of rate?
 
 # calculate the ratio of the biomass value for each plot to the mean value for
 # control plots at that site and time step
@@ -104,4 +92,4 @@ ggplot(data = resilience, aes(x = elapsed_days, y = plot_meanC_ratio,
   geom_point() + 
   geom_smooth(method = "loess")
 
-### end recovery -------------------------------------------------------------
+### end recovery & resistance calculation -------------------------------------
