@@ -7,10 +7,14 @@
 ##              site and time step.
 ## 
 ## TODO:  
+##
+## NOTES: For calculating reslilience measures for other datasets, I suggest
+##    getting those datasets into a dataframe with colum names that match those
+##    used here.  
 ## 
 ## Willson Gaul, Lupe Leon-Sanchez, Hannah White
 ## created: 14 Nov 2019
-## last modified: 14 Nov 2019
+## last modified: 15 Nov 2019
 ##########################
 rm(list = ls())
 # RM means repeated measurement
@@ -37,36 +41,46 @@ BIOMASA$CODE <- as.character(BIOMASA$CODE)
 
 # Make a unique site identifier
 BIOMASA$site_ID <- paste0(as.character(BIOMASA$Region), as.character(BIOMASA$Farm))
+# standardize column names
+names(BIOMASA)[names(BIOMASA) == "Time"] <- "timestep" # standardize column names
+names(BIOMASA)[names(BIOMASA) == "TREATMENT"] <- "treatment" # standardize column names
+
 
 # make column with days elapsed since end of drought (for plotting)
-BIOMASA$elapsed_days <- gsub("Day.", "", BIOMASA$Time)
+BIOMASA$elapsed_days <- gsub("Day.", "", BIOMASA$timestep)
 BIOMASA$elapsed_days[BIOMASA$elapsed_days == "Baseline"] <- NA
 BIOMASA$elapsed_days[BIOMASA$elapsed_days == "mid.drought"] <- NA
 BIOMASA$elapsed_days <- as.numeric(as.character(BIOMASA$elapsed_days))
 
 # make a dataframe to hold resilience metric results
-resilience <- select(BIOMASA, Region, Farm, TREATMENT, CODE, Time, elapsed_days, 
+resilience <- select(BIOMASA, Region, Farm, treatment, CODE, timestep, elapsed_days, 
                      site_ID, `DRY WEIGHT NON RM`)
+
 
 #####################################################################
 ### calculate control means at each site to use -------------------------------
-calc_control_mean <- function(timestep, data, variable) {
+calc_control_mean <- function(ts, data, treatment_val, metric_name) {
   ## calculate the mean of controls plots for variable at a single timestep
+  ## This function requires data to have the following column names:
+  ##  
   df <- BIOMASA %>%
-    filter(TREATMENT == "0" & Time == timestep) %>%
-    select(site_ID, eval(variable), Time) %>%
+    filter(treatment == eval(treatment_val) & timestep == ts) %>%
+    select(site_ID, variable, timestep) %>%
     group_by(site_ID) %>%
-    mutate(control_mean_dry_weight_non_rm = mean(`DRY WEIGHT NON RM`, na.rm = T)) %>%
-    select(-`DRY WEIGHT NON RM`) %>%
-    unique()
+    summarise(control_mean = mean(variable, na.rm = T), 
+              timestep = unique(!!ts), 
+              metric = !!metric_name) 
   df
 }
 
-# calculate mean of control dry mass weights for all sites and time steps
-control_means <- lapply(unique(BIOMASA$Time), FUN = calc_control_mean, 
-                        data = BIOMASA, variable = "DRY WEIGHT NON RM")
+BIOMASA$variable <- BIOMASA$`DRY WEIGHT NON RM`
 
-control_means <- bind_rows(control_means)
+# calculate mean of control dry mass weights for all sites and time steps
+control_means <- lapply(unique(BIOMASA$timestep), FUN = calc_control_mean, 
+                        data = BIOMASA, treatment_val = "0", 
+                        metric_name = "DRY WEIGHT NON RM")
+
+control_means <- bind_rows(control_means) # should be 140 rows
 ## end calculate control means ----------------------------------------------
 ###########################################################################
 
@@ -83,13 +97,14 @@ resilience <- left_join(resilience, control_means)
 # calculate the ratio of the biomass value for each plot to the mean value for
 # control plots at that site and time step
 resilience$plot_meanC_ratio <- resilience$`DRY WEIGHT NON RM` / 
-  resilience$control_mean_dry_weight_non_rm
-
+  resilience$control_mean
 
 
 ggplot(data = resilience, aes(x = elapsed_days, y = plot_meanC_ratio, 
-                              color = factor(as.character(TREATMENT)))) + 
+                              color = factor(as.character(treatment)))) + 
   geom_point() + 
   geom_smooth(method = "loess")
 
 ### end recovery & resistance calculation -------------------------------------
+########## end plant biomass resilience calculation --------------------------
+
