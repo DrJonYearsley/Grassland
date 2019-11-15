@@ -59,12 +59,24 @@ resilience <- select(BIOMASA, Region, Farm, treatment, CODE, timestep, elapsed_d
 
 #####################################################################
 ### calculate control means at each site to use -------------------------------
-calc_control_mean <- function(ts, data, treatment_val, metric_name) {
+calc_control_mean <- function(ts, data, control_val, metric_name) {
   ## calculate the mean of controls plots for variable at a single timestep
   ## This function requires data to have the following column names:
+  ##  timestep - indicating the sampling time (e.g. day 0)
+  ##  variable - this is the variable for which the mean of control plots is 
+  ##              desired (e.g. plant_biomass)
+  ##  treatment - giving the control/treatment label for each observation
+  ##  site_ID - unique site (farm) identifier (site not plot)
   ##  
+  ##  ARGS: ts - character string with a single value from the timestep column 
+  ##            at which the means should be calculated
+  ##        data - data frame containing the columns listed above
+  ##        control_val - character string giving the value used to indicate
+  ##            controls in the treatment column
+  ##        metric_name - character string with the name of the variable being
+  ##            measured (the original name of variable, e.g. plant_biomass)
   df <- BIOMASA %>%
-    filter(treatment == eval(treatment_val) & timestep == ts) %>%
+    filter(treatment == eval(control_val) & timestep == ts) %>%
     select(site_ID, variable, timestep) %>%
     group_by(site_ID) %>%
     summarise(control_mean = mean(variable, na.rm = T), 
@@ -77,7 +89,7 @@ BIOMASA$variable <- BIOMASA$`DRY WEIGHT NON RM`
 
 # calculate mean of control dry mass weights for all sites and time steps
 control_means <- lapply(unique(BIOMASA$timestep), FUN = calc_control_mean, 
-                        data = BIOMASA, treatment_val = "0", 
+                        data = BIOMASA, control_val = "0", 
                         metric_name = "DRY WEIGHT NON RM")
 
 control_means <- bind_rows(control_means) # should be 140 rows
