@@ -23,44 +23,19 @@ rm(list = ls())
 
 # for TREATMENT, 1 = Drought, 0 = control
 
-# 8 plots per site, 5 sites per region, 4 regions, 7 time points
+# 8 plots per site, 5 sites per region, 4 regions, 7 time points = 1120
 
 setwd("~/Documents/Data_Analysis/UCD/Grassland/")
 
 library(Hmisc)
 library(tidyverse)
 
-BIOMASA <- read_csv("~/Dropbox/Grassland/Data/EMPIRICAL DATA FIELD EXPERIMENT/DATASET BIOMASS SOIL MOISTURE EXPERIMENT.csv")
+BIOMASA <- read_csv("~/Dropbox/Grassland/Data/FinalExptData/DATASET BIOMASS SOIL MOISTURE EXPERIMENT.csv")
 
-# drop duplicate columns
-BIOMASA <- BIOMASA[, colnames(BIOMASA) %nin% c("Time_1", "DRY WEIGHT RM_1")]
-
-BIOMASA$TREATMENT <- as.character(BIOMASA$TREATMENT)
-BIOMASA$Farm <- as.character(BIOMASA$Farm)
-BIOMASA$CODE <- as.character(BIOMASA$CODE)
-
-# Make a unique site identifier
-BIOMASA$site_ID <- paste0(as.character(BIOMASA$Region), as.character(BIOMASA$Farm))
-# standardize column names
-names(BIOMASA)[names(BIOMASA) == "Time"] <- "timestep" # standardize column names
-names(BIOMASA)[names(BIOMASA) == "TREATMENT"] <- "treatment" # standardize column names
-
-
-# make column with days elapsed since end of drought (for plotting)
-BIOMASA$elapsed_days <- gsub("Day.", "", BIOMASA$timestep)
-BIOMASA$elapsed_days[BIOMASA$elapsed_days == "Baseline"] <- NA
-BIOMASA$elapsed_days[BIOMASA$elapsed_days == "mid.drought"] <- NA
-BIOMASA$elapsed_days <- as.numeric(as.character(BIOMASA$elapsed_days))
-
-# make a dataframe to hold resilience metric results
-resilience <- select(BIOMASA, Region, Farm, treatment, CODE, timestep, elapsed_days, 
-                     site_ID, `DRY WEIGHT NON RM`)
-
-
-#####################################################################
-### calculate control means at each site to use -------------------------------
+## define function to calculate mean of controls
 calc_control_mean <- function(ts, data, control_val, metric_name) {
   ## calculate the mean of controls plots for variable at a single timestep
+  ##
   ## This function requires data to have the following column names:
   ##  timestep - indicating the sampling time (e.g. day 0)
   ##  variable - this is the variable for which the mean of control plots is 
@@ -83,9 +58,33 @@ calc_control_mean <- function(ts, data, control_val, metric_name) {
               timestep = unique(!!ts), 
               metric = !!metric_name) 
   df
-}
+} ## end function definition --------------------------------------------------
 
-BIOMASA$variable <- BIOMASA$`DRY WEIGHT NON RM`
+# Plant biomass data format prep ---------------------------------------------
+# Make a unique site identifier
+BIOMASA$site_ID <- paste0(as.character(BIOMASA$Region), as.character(BIOMASA$Farm))
+# standardize column names
+names(BIOMASA)[names(BIOMASA) == "Time"] <- "timestep" # standardize column names
+names(BIOMASA)[names(BIOMASA) == "TREATMENT"] <- "treatment" # standardize column names
+
+
+# make column with days elapsed since end of drought (for plotting)
+BIOMASA$elapsed_days <- gsub("Day.", "", BIOMASA$timestep)
+BIOMASA$elapsed_days[BIOMASA$elapsed_days == "Baseline"] <- NA
+BIOMASA$elapsed_days[BIOMASA$elapsed_days == "mid.drought"] <- NA
+BIOMASA$elapsed_days <- as.numeric(as.character(BIOMASA$elapsed_days))
+# copy the variable of interest to a column named 'variable' as required by function
+BIOMASA$variable <- BIOMASA$`DRY WEIGHT NON RM` 
+## end plant biomass data prep -----------------------------------------------
+
+
+### calculate control means at each site to use -------------------------------
+# make a dataframe to hold resilience metric results
+# this only needs to be done for the first variable (e.g. plant biomass). 
+# Results for subsequent variables (e.g. EVI, soil moister) can be joined to
+# this data frame
+resilience <- select(BIOMASA, Region, Farm, treatment, CODE, timestep, elapsed_days, 
+                     site_ID, `DRY WEIGHT NON RM`)
 
 # calculate mean of control dry mass weights for all sites and time steps
 control_means <- lapply(unique(BIOMASA$timestep), FUN = calc_control_mean, 
@@ -104,8 +103,6 @@ resilience <- left_join(resilience, control_means)
 # 
 # We are using non-repeated measures of biomass
 
-## For recovery, use ratio at day 64 instead of rate?
-
 # calculate the ratio of the biomass value for each plot to the mean value for
 # control plots at that site and time step
 resilience$plot_meanC_ratio <- resilience$`DRY WEIGHT NON RM` / 
@@ -115,7 +112,8 @@ resilience$plot_meanC_ratio <- resilience$`DRY WEIGHT NON RM` /
 ggplot(data = resilience, aes(x = elapsed_days, y = plot_meanC_ratio, 
                               color = factor(as.character(treatment)))) + 
   geom_point() + 
-  geom_smooth(method = "loess")
+  geom_smooth(method = "loess") #+ 
+  # facet_wrap(~site_ID)
 
 ### end recovery & resistance calculation -------------------------------------
 ########## end plant biomass resilience calculation --------------------------
