@@ -128,14 +128,9 @@ baseline.12.noon <- df.12.noon %>%
   group_by(Day, Site, Region, Farm, site_ID) %>% 
   summarize(control_mean = mean(Moisture, na.rm = T))
 
-# Extract drought treatment 
-
-drought.12.noon <- df.12.noon %>% 
-  filter(treatment == "D")
-
 # Join datasets 
 
-moisture.12.noon <- left_join(drought.12.noon, baseline.12.noon)
+moisture.12.noon <- left_join(df.12.noon, baseline.12.noon)
 
 # Calculate ratio
 
@@ -144,14 +139,19 @@ moisture.12.noon$Ratio <- moisture.12.noon$Moisture/moisture.12.noon$control_mea
 #================================================
 # Plot ratios per sampling day
 
-ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
-
 moisture.12.noon$Day.Title <- paste("Day",moisture.12.noon$Day)
 moisture.12.noon$Day.Title <- as.factor(moisture.12.noon$Day.Title)
 moisture.12.noon$Day.Title <- factor(moisture.12.noon$Day.Title, 
                                      levels = c("Day 0", "Day 8", "Day 16", "Day 32", "Day 64"))
 
-g1 <- ggplot(moisture.12.noon, aes(x = Site, y = Ratio)) +
+# Only drought treatment
+
+drought.12.noon <- moisture.12.noon %>% 
+  filter(treatment == "D")
+
+ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
+
+g1 <- ggplot(drought.12.noon, aes(x = Site, y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_wrap(~ Day.Title, nrow = 5) +
@@ -166,14 +166,14 @@ g1 <- ggplot(moisture.12.noon, aes(x = Site, y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
 ggsave(paste0(mydir,"Soil moisture ratio 12-00 noon V1.png"),
        g1, width = 18, height = 24, units = "cm")
 
 ####
 
-g2 <- ggplot(moisture.12.noon, aes(x = as.factor(Day), y = Ratio)) +
+g2 <- ggplot(drought.12.noon, aes(x = as.factor(Day), y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_grid(Region ~ Farm) +
@@ -188,10 +188,52 @@ g2 <- ggplot(moisture.12.noon, aes(x = as.factor(Day), y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
 ggsave(paste0(mydir,"Soil moisture ratio 12-00 noon V2.png"),
        g2, width = 24, height = 18, units = "cm")
+
+#================================================
+# Plot ratios per sampling day regardless of site (see Willson's script)
+
+ylab2 <- expression(paste(bold("Ratio"~"Plot"["i"]~":"~"Plot"["control mean"])))
+
+g3 <- ggplot(data = moisture.12.noon, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  geom_smooth(method = "loess", alpha = 0.2) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0))) +
+  labs(y = ylab2)
+
+ggsave(paste0(mydir,"Soil moisture ratio 12-00 noon V3.png"), 
+       g3, width = 8, height = 5)
+
+#================================================
+# Plot ratios per sampling day for each region and farm
+
+g4 <- ggplot(data = moisture.12.noon, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0)),
+        strip.text = element_text(size = 12),
+        panel.spacing = unit(0.4, "cm")) +
+  geom_smooth(method = "loess", alpha = 0.2) +
+  facet_grid(Region ~ Farm) +
+  labs(y = ylab2) +
+  scale_y_continuous(limits = c(0,4))
+
+ggsave(paste0(mydir,"Soil moisture ratio 12-00 noon V4.png"), 
+       g4, width = 24, height = 18, units = "cm")
 
 #================================================
 
@@ -274,14 +316,9 @@ baseline.24h <- avg.24h %>%
   group_by(Day, Site, Region, Farm, site_ID) %>% 
   summarize(control_mean = mean(Avg.Moisture, na.rm = T))
 
-# Extract drought treatment 
-
-drought.24h <- avg.24h %>% 
-  filter(treatment == "D")
-
 # Join datasets 
 
-moisture.24h <- left_join(drought.24h, baseline.24h)
+moisture.24h <- left_join(avg.24h, baseline.24h)
 
 # Calculate ratio
 
@@ -290,14 +327,19 @@ moisture.24h$Ratio <- moisture.24h$Avg.Moisture/moisture.24h$control_mean
 #================================================
 # Plot ratios per sampling day
 
-ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
-
 moisture.24h$Day.Title <- paste("Day",moisture.24h$Day)
 moisture.24h$Day.Title <- as.factor(moisture.24h$Day.Title)
 moisture.24h$Day.Title <- factor(moisture.24h$Day.Title, 
-                                     levels = c("Day 0", "Day 8", "Day 16", "Day 32", "Day 64"))
+                                 levels = c("Day 0", "Day 8", "Day 16", "Day 32", "Day 64"))
 
-g3 <- ggplot(moisture.24h, aes(x = Site, y = Ratio)) +
+# Only drought treatment
+
+drought.24h <- moisture.24h %>% 
+  filter(treatment == "D")
+
+ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
+
+g5 <- ggplot(drought.24h, aes(x = Site, y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_wrap(~ Day.Title, nrow = 5) +
@@ -312,14 +354,16 @@ g3 <- ggplot(moisture.24h, aes(x = Site, y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 24 h period, starting at 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
-ggsave(paste0(mydir,"Soil moisture ratio 24 h V1.png"),
-       g3, width = 18, height = 24, units = "cm")
+g5
+
+# ggsave(paste0(mydir,"Soil moisture ratio 24 h V1.png"),
+#        g5, width = 18, height = 24, units = "cm")
 
 ####
 
-g4 <- ggplot(moisture.24h, aes(x = as.factor(Day), y = Ratio)) +
+g6 <- ggplot(drought.24h, aes(x = as.factor(Day), y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_grid(Region ~ Farm) +
@@ -334,10 +378,58 @@ g4 <- ggplot(moisture.24h, aes(x = as.factor(Day), y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 24 h period, starting at 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
-ggsave(paste0(mydir,"Soil moisture ratio 24 h V2.png"),
-       g4, width = 24, height = 18, units = "cm")
+g6
+
+# ggsave(paste0(mydir,"Soil moisture ratio 24 h V2.png"),
+#        g6, width = 24, height = 18, units = "cm")
+
+#================================================
+# Plot ratios per sampling day regardless of site (see Willson's script)
+
+ylab2 <- expression(paste(bold("Ratio"~"Plot"["i"]~":"~"Plot"["control mean"])))
+
+g7 <- ggplot(data = moisture.24h, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  geom_smooth(method = "loess", alpha = 0.2) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0))) +
+  labs(y = ylab2)
+
+g7
+
+# ggsave(paste0(mydir,"Soil moisture ratio 24 h V3.png"), 
+#        g3, width = 8, height = 5)
+
+#================================================
+# Plot ratios per sampling day for each region and farm
+
+g8 <- ggplot(data = moisture.24h, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0)),
+        strip.text = element_text(size = 12),
+        panel.spacing = unit(0.4, "cm")) +
+  geom_smooth(method = "loess", alpha = 0.2) +
+  facet_grid(Region ~ Farm) +
+  labs(y = ylab2) +
+  scale_y_continuous(limits = c(0,4))
+
+g8
+
+# ggsave(paste0(mydir,"Soil moisture ratio 24 h V4.png"), 
+#        g8, width = 24, height = 18, units = "cm")
 
 #================================================
 
@@ -420,14 +512,9 @@ baseline.48h <- avg.48h %>%
   group_by(Day, Site, Region, Farm, site_ID) %>% 
   summarize(control_mean = mean(Avg.Moisture, na.rm = T))
 
-# Extract drought treatment 
-
-drought.48h <- avg.48h %>% 
-  filter(treatment == "D")
-
 # Join datasets 
 
-moisture.48h <- left_join(drought.48h, baseline.48h)
+moisture.48h <- left_join(avg.48h, baseline.48h)
 
 # Calculate ratio
 
@@ -436,14 +523,19 @@ moisture.48h$Ratio <- moisture.48h$Avg.Moisture/moisture.48h$control_mean
 #================================================
 # Plot ratios per sampling day
 
-ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
-
 moisture.48h$Day.Title <- paste("Day",moisture.48h$Day)
 moisture.48h$Day.Title <- as.factor(moisture.48h$Day.Title)
 moisture.48h$Day.Title <- factor(moisture.48h$Day.Title, 
                                  levels = c("Day 0", "Day 8", "Day 16", "Day 32", "Day 64"))
 
-g5 <- ggplot(moisture.48h, aes(x = Site, y = Ratio)) +
+# Only drought treatment
+
+drought.48h <- moisture.48h %>% 
+  filter(treatment == "D")
+
+ylab <- expression(paste(bold("Ratio"~D["i"]~":"~C["mean"])))
+
+g9 <- ggplot(drought.48h, aes(x = Site, y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_wrap(~ Day.Title, nrow = 5) +
@@ -458,14 +550,16 @@ g5 <- ggplot(moisture.48h, aes(x = Site, y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 48 h period, starting at 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
-ggsave(paste0(mydir,"Soil moisture ratio 48 h V1.png"),
-       g5, width = 18, height = 24, units = "cm")
+g9
+
+# ggsave(paste0(mydir,"Soil moisture ratio 48 h V1.png"),
+#        g9, width = 18, height = 24, units = "cm")
 
 ####
 
-g6 <- ggplot(moisture.48h, aes(x = as.factor(Day), y = Ratio)) +
+g10 <- ggplot(drought.48h, aes(x = as.factor(Day), y = Ratio)) +
   geom_boxplot(aes(color = Region, fill = Region),
                alpha = 0.5) +
   facet_grid(Region ~ Farm) +
@@ -480,7 +574,55 @@ g6 <- ggplot(moisture.48h, aes(x = as.factor(Day), y = Ratio)) +
         panel.spacing = unit(0.4, "cm")) +
   labs(x = "Date", y = ylab, title = "Soil moisture ratio 48 h period, starting at 12:00 noon") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
-  scale_y_continuous(limits = c(0,3.25))
+  scale_y_continuous(limits = c(0,3.5))
 
-ggsave(paste0(mydir,"Soil moisture ratio 48 h V2.png"),
-       g6, width = 24, height = 18, units = "cm")
+g10
+
+# ggsave(paste0(mydir,"Soil moisture ratio 48 h V2.png"),
+#        g10, width = 24, height = 18, units = "cm")
+
+#================================================
+# Plot ratios per sampling day regardless of site (see Willson's script)
+
+ylab2 <- expression(paste(bold("Ratio"~"Plot"["i"]~":"~"Plot"["control mean"])))
+
+g11 <- ggplot(data = moisture.48h, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  geom_smooth(method = "loess", alpha = 0.2) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0))) +
+  labs(y = ylab2)
+
+g11
+
+# ggsave(paste0(mydir,"Soil moisture ratio 48 h V3.png"), 
+#        g11, width = 8, height = 5)
+
+#================================================
+# Plot ratios per sampling day for each region and farm
+
+g12 <- ggplot(data = moisture.48h, 
+             aes(x = Day, y = Ratio, 
+                 color = treatment, fill = treatment)) + 
+  geom_point() + 
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_text(size = 14, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 14, face = "bold", margin = margin(0,15,0,0)),
+        strip.text = element_text(size = 12),
+        panel.spacing = unit(0.4, "cm")) +
+  geom_smooth(method = "loess", alpha = 0.2) +
+  facet_grid(Region ~ Farm) +
+  labs(y = ylab2) +
+  scale_y_continuous(limits = c(0,4))
+
+g12
+
+# ggsave(paste0(mydir,"Soil moisture ratio 48 h V4.png"), 
+#        g12, width = 24, height = 18, units = "cm")
