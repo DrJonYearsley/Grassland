@@ -21,7 +21,7 @@
 # 1. Extracted soil moisture data for all days (or intervals/windows) set 
 # 2. Averaged soil moisture over the specified period/window
 # 3. ggplot object g1 (panels: sampling days)
-# 4. ggplot object g2 (Pnales: Region and Farm)
+# 4. ggplot object g2 (panels: Region and Farm)
 
 #===========================================
 # Clear objects from the workspace
