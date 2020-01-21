@@ -20,7 +20,7 @@
 #===========================================
 # Clear objects from the workspace
 
-rm(list = ls())
+# rm(list = ls())
 
 # for TREATMENT, D = Drought, C = control
 
@@ -32,16 +32,17 @@ rm(list = ls())
 
 # Maja's desktop PC
 
-setwd("C:/Users/3054311/Documents/My Documents/Grassland project/01_Probes_soil_moisture_and_temp")
+# setwd("C:/Users/3054311/Documents/My Documents/Grassland project/01_Probes_soil_moisture_and_temp")
 
-data.dir <- paste0(getwd(),"/Data/")
-figures.dir <- paste0(getwd(),"/Figures/")
+data.dir <- paste0(getwd(), "/Soil_moisture/Data/") # for wg's computer
+# data.dir <- paste0(getwd(), "/Data/") # Maja's computer
+# figures.dir <- paste0(getwd(),"/Figures/")
 
-dir.create(paste0(data.dir,"Soil moisture resilience Willson"))
-mydir.data <- paste0(data.dir,"Soil moisture resilience Willson/")
+# dir.create(paste0(data.dir,"Soil moisture resilience Willson"))
+# mydir.data <- paste0(data.dir,"Soil moisture resilience Willson/")
 
-dir.create(paste0(figures.dir,"Soil moisture resilience Willson"))
-mydir <- paste0(figures.dir,"Soil moisture resilience Willson/")
+# dir.create(paste0(figures.dir,"Soil moisture resilience Willson"))
+# mydir <- paste0(figures.dir,"Soil moisture resilience Willson/")
 
 #===========================================
 # Packages
@@ -150,8 +151,9 @@ g1 <- ggplot(data = resilience, aes(x = elapsed_days, y = plot_meanC_ratio,
   geom_point() + 
   geom_smooth(method = "loess") #+ 
   # facet_wrap(~site_ID)
+g1
 
-ggsave(paste0(mydir,"Soil resilience Willson.png"), g1, width = 8, height = 5)
+# ggsave(paste0(mydir,"Soil resilience Willson.png"), g1, width = 8, height = 5)
 
 ## Produce similar graph like in Maja's other script
 # For this, extract only drought treatment
@@ -177,14 +179,16 @@ g2 <- ggplot(drought, aes(x = as.factor(elapsed_days), y = plot_meanC_ratio)) +
   labs(x = "Date", y = ylab, title = "Soil resilience") +
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray50") +
   scale_y_continuous(limits = c(0,3.5))
+g2
 
-ggsave(paste0(mydir,"Soil resilience Willson 2.png"), g2, 
-       width = 24, height = 18, units = "cm")
+# ggsave(paste0(mydir,"Soil resilience Willson 2.png"), g2, 
+       # width = 24, height = 18, units = "cm")
 
 ### end recovery & resistance calculation -------------------------------------
 ########## end plant biomass resilience calculation --------------------------
+resilience_soil <- resilience
 
 ## Save data
 
-write.table(resilience, paste0(mydir.data,"Soil resilience Willson.csv"), sep = ",", row.names = F)
-save(resilience, file = paste0(mydir.data,"Soil resilience Willson.RData"))
+# write.table(resilience, paste0(mydir.data,"Soil resilience Willson.csv"), sep = ",", row.names = F)
+# save(resilience, file = paste0(mydir.data,"Soil resilience Willson.RData"))

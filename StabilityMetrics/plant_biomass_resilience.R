@@ -6,7 +6,7 @@
 ##              plot to the mean of plant biomass in control plots at the same 
 ##              site and time step.
 ## 
-## TODO:  
+## TODO:  - add ratio for repeated measures samples
 ##
 ## NOTES: For calculating reslilience measures for other datasets, I suggest
 ##    getting those datasets into a dataframe with colum names that match those
@@ -118,3 +118,5 @@ ggplot(data = resilience, aes(x = elapsed_days, y = plot_meanC_ratio,
 ### end recovery & resistance calculation -------------------------------------
 ########## end plant biomass resilience calculation --------------------------
 
+# rename data frame so it is clear this is the plant biomass data
+resilience_plant <- resilience
