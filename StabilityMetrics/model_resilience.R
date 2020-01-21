@@ -54,7 +54,7 @@ resilience_joined$day <- as.numeric(as.character(resilience_joined$timestep))
 ggplot(data = resilience_joined[!is.na(resilience_joined$day), ], 
        aes(x = as.numeric(day), 
            y = plot_meanC_ratio, 
-           color = factor(as.character(treatment)))) + 
+           color = factor(treatment))) + 
   geom_smooth() + 
   geom_point() +
   facet_wrap(~ metric)
@@ -71,8 +71,16 @@ ggplot(data = resilience_joined[!is.na(resilience_joined$day), ],
 ## 
 ## Eventually, we might want to add random effects (e.g. for site or region) and
 ## possibly other covariates.
+## 
+## This model tells us whether the recovery (basically the slope of the ratio 
+## over days) is different for the different measures and for the treatment 
+## vs. control within each measure.  I don't think this gives us very 
+## interpretable coefficient values.  For example, I don't know how we would 
+## try to interpret whether recovery is faster for soil moisture than for 
+## plant biomass.  But maybe Dina or others have ideas about how to answer 
+## those types of questions.  
 
-res_mod <- glm(plot_meanC_ratio ~ as.numeric(day)*factor(treatment)*factor(metric), 
+recovery_mod <- glm(plot_meanC_ratio ~ as.numeric(day)*factor(treatment)*factor(metric), 
                data = resilience_joined)
 
 
