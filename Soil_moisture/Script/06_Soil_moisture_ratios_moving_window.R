@@ -3,9 +3,9 @@
 
 # This is a script to calculate soil moisture ratios Drought : Control from the Grassland Resilience 
 # Year 1 All Ireland Drought Experiment. In the previous script (05), I calculated running ratio
-# (ratio of drought to mean control at each time point, resolution: 1 hours). In this script, 
+# (ratio of drought to mean control at each time point, resolution: 1 hour). In this script, 
 # I am extracting the soil mositure data from drought and control treatments on/around sampling days
-# 0, 8, 16, 32 and 64. In the next step, I calculate again the ration of drought to mean control.
+# 0, 8, 16, 32 and 64. In the next step, I calculate again the ratio of drought to mean control.
 # To get the ratio for each of the sampling days, three options were suggested:
 # I. 12:00 noon on the day of sampling
 # II. Average over 24 h, starting at 12:00 noon
@@ -439,7 +439,7 @@ g8
 ##                     ##
 ##---------------------##
 
-# Extract soil moisture from 12:00 noon to 11:00 am next day
+# Extract soil moisture from 12:00 noon to 11:00 am two days later
 # on all sampling days for each site
 
 #Sys.setenv(tz='UTC')  ## change timezone to UTC

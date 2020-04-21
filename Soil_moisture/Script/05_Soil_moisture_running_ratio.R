@@ -99,7 +99,7 @@ max.date <- max(moisture$date.time)
 
 # Inspecting the ratios showed that there are some outliers
 # I extracted these and exported them in an extra file
-# In totally, 1750 outliers were found (threshold = 2)
+# In total, 1750 outliers were found (threshold = 2)
 # of which 1632 were from the site L4 (Limerick 4)
 
 outliers <- moisture %>% 

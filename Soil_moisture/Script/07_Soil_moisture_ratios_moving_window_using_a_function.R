@@ -67,7 +67,7 @@ names(df)
 load(file = paste0(data.dir,"All events.RData"))
 
 #================================================
-# Set directory for pdata and lots
+# Set directory for data and plots
 
 mydir.data <- paste0(data.dir,"Soil moisture ratios DtoC per site and sampling day/")
 mydir <- paste0(figures.dir,"Soil moisture ratios DtoC per site and sampling day/")
@@ -75,7 +75,7 @@ mydir <- paste0(figures.dir,"Soil moisture ratios DtoC per site and sampling day
 #================================================
 # Use function moisture.mov.win
 
-source(paste0(script.dir,"Function moisture.mov.win.R"))
+source("C:/Users/3054311/Documents/My Documents/Grassland project/Functions/Function moisture.mov.win.R")
 
 ## Use function
 
