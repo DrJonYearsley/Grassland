@@ -1,0 +1,1358 @@
+---
+title: "Soil moisture ratio non rm - Model comparison for treatment"
+author: "Dr. Maja Ilić"
+date: "4/22/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Info  
+
+This script fits linear models of the soil moisture resilience measure (non rm) with the following random effect structures (as discussed with PC, 23.03.2020):    
+
+1. (1|day) + (1|Farm) + (treatment|Region)    
+2. (1|day) + (treatment|Region)      
+3. (1|Farm) + (treatment|Region)  
+4. (1|day) + (1|Region/Farm)   
+5. (1|day)  
+6. (1|Region/Farm)  
+7. (1|day) + (1|Region/Farm) + (treatment|Region)   
+8. (1|Region/Farm) + (treatment|Region)   
+9. (1|day) + (1|Region/Farm) + (treatment - 1|Region)   
+10. (1|Region/Farm) + (treatment - 1|Region)  
+
+Fixed effect structure in these "full models" is given as: **day * treatment**        
+
+The response is the ratio of soil moisture in each plot to the average soil moisture of control plots at the same site (farm) and time step. The calculated ratio corresponds to the non repeated measure of plant biomass (starting at middrought).    
+
+**NOTE:** First 6 random effect structures were suggested by PC, while the last 4 were added by MI (out of curiousity).     
+
+## Set working directory  
+
+```{r}
+# Maja's desktop PC
+
+setwd("C:/Users/3054311/Documents/My Documents/Grassland project/05_Resilience/Model comparison")
+```
+
+## Packages  
+
+```{r warning = FALSE, message = FALSE}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+library(lme4)
+library(lmerTest)
+library(car)
+library(performance)
+library(insight)
+library(see)
+library(effects)
+library(afex)
+library(optimx)
+library(nloptr)
+library(dfoptim)
+library(pander)
+library(fmsb)
+library(RColorBrewer)
+library(scales)
+```
+
+## Load soil moisture ratios and rainfall data  
+
+```{r}
+load(file = "C:/Users/3054311/Documents/My Documents/Grassland project/05_Resilience/Data/Resilience_Soil_with_Rainfall_non_rm.RData")
+
+resilience_soil_non_rm <- resilience_soil_non_rm[!is.na(resilience_soil_non_rm$plot_meanC_ratio),]
+```
+
+# Model 1: (1|day) + (1|Farm) + (treatment|Region)  
+
+```{r}
+rand1 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Farm) + (treatment|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand1)
+
+theta <- getME(rand1,"theta")
+diag.element <- getME(rand1,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand1)
+check_convergence(rand1)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand1)
+```
+
+## Refitting the model with the optimizer bobyqa:  
+
+```{r}
+rand1_bobyqa <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "bobyqa", 
+                                           optCtrl = list(maxfun = 2e5)))
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand1_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 12, fig.height = 9, warning = F, message = F}
+check_model(rand1_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand1_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand1_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand1_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand1_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand1_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out1 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand1_nlminb))  
+
+ggplot(out1, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out1, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 2: (1|day) + (treatment|Region)  
+
+```{r}
+rand2 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (treatment|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand2)
+
+theta <- getME(rand2,"theta")
+diag.element <- getME(rand2,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand2)
+check_convergence(rand2)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand2)
+```
+
+## Refitting the model with the optimizer bobyqa:  
+
+```{r}
+rand2_bobyqa <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "bobyqa", 
+                                           optCtrl = list(maxfun = 2e5)))
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand2_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 12, fig.height = 9, warning = F, message = F}
+check_model(rand2_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand2_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand2_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand2_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand2_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand2_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out2 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand2_nlminb))  
+
+ggplot(out2, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out2, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 3: (1|Farm) + (treatment|Region)  
+
+```{r}
+rand3 <- lmer(plot_meanC_ratio ~ day * treatment + (1|Farm) + (treatment|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand3)
+
+theta <- getME(rand3,"theta")
+diag.element <- getME(rand3,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand3)
+check_convergence(rand3)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand3)
+```
+
+## Refitting the model with the optimizer Nelder_Mead:  
+
+```{r}
+rand3_NM <- lmer(plot_meanC_ratio ~ day * treatment + (1|Farm) + (treatment|Region),
+                 data = resilience_soil_non_rm,
+                 REML = T,
+                 control = lmerControl(optimizer = "Nelder_Mead", 
+                                       optCtrl = list(maxfun = 2e5)))
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand3_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 12, fig.height = 9, warning = F, message = F}
+check_model(rand3_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand3_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand3_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand3_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand3_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand3_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out3 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand3_nlminb))  
+
+ggplot(out3, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out3, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 4: (1|day) + (1|Region/Farm)  
+
+```{r}
+rand4 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand4)
+
+theta <- getME(rand4,"theta")
+diag.element <- getME(rand4,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand4)
+check_convergence(rand4)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand4)
+```
+
+## Refitting the model with the optimizer bobyqa:  
+
+```{r}
+rand4_bobyqa <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (Region/Farm),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "bobyqa",
+                                           optCtrl = list(maxfun = 2e5)))
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand4_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (Region/Farm),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+
+Although the model was refitted with all available optimizers (not included in this report), I could not get rid of the warnings. Therefore, I will keep the inital full model.
+
+## Model validation:  
+
+```{r fig.width = 9, fig.height = 9, warning = F, message = F}
+check_model(rand4)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand4)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand4)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand4), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand4)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand4)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out4 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand4))  
+
+ggplot(out4, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm)",
+       subtitle = "lm(fitted data ~ day)")
+
+ggplot(out4, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm)",
+       subtitle = "lm(fitted data ~ day)")
+```
+
+# Model 5: (1|day)  
+
+```{r}
+rand5 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand5)
+
+theta <- getME(rand5,"theta")
+diag.element <- getME(rand5,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand5)
+check_convergence(rand5)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand5)
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand5_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 9, fig.height = 9, warning = F, message = F}
+check_model(rand5_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand5_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand5_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand5_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand5_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand5_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out5 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand5_nlminb))  
+
+ggplot(out5, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out5, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 6: (1|Region/Farm)  
+
+```{r}
+rand6 <- lmer(plot_meanC_ratio ~ day * treatment + (1|Region/Farm),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand6)
+
+theta <- getME(rand6,"theta")
+diag.element <- getME(rand6,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand6)
+check_convergence(rand6)
+```
+
+## Model validation:  
+
+```{r fig.width = 9, fig.height = 9, warning = F, message = F}
+check_model(rand6)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand6)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand6)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand6), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand6)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand6)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out6 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand6))  
+
+ggplot(out6, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Region/Farm)",
+       subtitle = "lm(fitted data ~ day)")
+
+ggplot(out6, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Region/Farm)",
+       subtitle = "lm(fitted data ~ day)")
+```
+
+# Model 7: (1|day) + (1|Region/Farm) + (treatment|Region)  
+
+```{r}
+rand7 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand7)
+
+theta <- getME(rand7,"theta")
+diag.element <- getME(rand7,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand7)
+check_convergence(rand7)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand7)
+```
+
+## Refitting the model with the optimizer bobyqa:  
+
+```{r}
+rand7_bobyqa <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "Nelder_Mead", 
+                                           optCtrl = list(maxfun = 2e5)))
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand7_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 7, fig.height = 8, warning = F, message = F}
+check_model(rand7_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand7_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand7_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand7_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand7_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand7_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out7 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand7_nlminb))  
+
+ggplot(out7, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out7, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 8: (1|Region/Farm) + (treatment|Region)  
+
+```{r}
+rand8 <- lmer(plot_meanC_ratio ~ day * treatment + (1|Region/Farm) + (treatment|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand8)
+
+theta <- getME(rand8,"theta")
+diag.element <- getME(rand8,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand8)
+check_convergence(rand8)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand8)
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand8_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|Region/Farm) + (treatment|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 7, fig.height = 8, warning = F, message = F}
+check_model(rand8_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand8_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand8_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand8_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand8_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand8_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out8 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand8_nlminb))  
+
+ggplot(out8, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Region/Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out8, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Region/Farm) + (treatment|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 9: (1|day) + (1|Region/Farm) + (treatment - 1|Region)  
+
+```{r}
+rand9 <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment - 1|Region),
+              data = resilience_soil_non_rm,
+              REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand9)
+
+theta <- getME(rand9,"theta")
+diag.element <- getME(rand9,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand9)
+check_convergence(rand9)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand9)
+```
+
+## Refitting the model with the optimizer nlminb:  
+
+```{r}
+rand9_nlminb <- lmer(plot_meanC_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment - 1|Region),
+                     data = resilience_soil_non_rm,
+                     REML = T,
+                     control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                           optCtrl = list(method = "nlminb", 
+                                                          starttests = FALSE, 
+                                                          kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 7, fig.height = 8, warning = F, message = F}
+check_model(rand9_nlminb)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand9_nlminb)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand9_nlminb)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand9_nlminb), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand9_nlminb)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand9_nlminb)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out9 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand9_nlminb))  
+
+ggplot(out9, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment - 1|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+
+ggplot(out9, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment - 1|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: nlminb")
+```
+
+# Model 10: (1|Region/Farm) + (treatment - 1|Region)  
+
+```{r}
+rand10 <- lmer(plot_meanC_ratio ~ day * treatment + (1|Region/Farm) + (treatment - 1|Region),
+               data = resilience_soil_non_rm,
+               REML = T) 
+```
+
+## Check the model for singularity and convergence:  
+
+```{r}
+isSingular(rand10)
+
+theta <- getME(rand10,"theta")
+diag.element <- getME(rand10,"lower") == 0
+any(theta[diag.element] < 1e-5)
+
+check_singularity(rand10)
+check_convergence(rand10)
+```
+
+## Refitting the model with different optimizers:  
+
+```{r}
+allFit(rand10)
+```
+
+## Refitting the model with the optimizer L-BFGS-B:  
+
+```{r}
+rand10_L_BFGS_B <- lmer(plot_meanC_ratio ~ day * treatment + (1|Region/Farm) + (treatment - 1|Region),
+                        data = resilience_soil_non_rm,
+                        REML = T,
+                        control = lmerControl(optimizer = "optimx", calc.derivs = FALSE,
+                                              optCtrl = list(method = "L-BFGS-B", 
+                                                             starttests = FALSE, 
+                                                             kkt = FALSE)))
+```
+
+## Model validation:  
+
+```{r fig.width = 7, fig.height = 8, warning = F, message = F}
+check_model(rand10_L_BFGS_B)
+```
+
+## SD and correlation of the random effects:  
+
+```{r}
+summary(rand10_L_BFGS_B)$varcor
+```
+
+## Variance of the random effects:  
+
+```{r warning = F}
+pander(summary(rand10_L_BFGS_B)$varcor, style = 'rmarkdown')
+```
+
+## Estimates for the random effects:  
+
+```{r warning = F}
+pander(ranef(rand10_L_BFGS_B), style = 'rmarkdown')
+```
+
+## Significance of the random effects:  
+
+```{r message = F}
+pander(rand(rand10_L_BFGS_B)[c(2,3,5,6)], style = 'rmarkdown')
+```
+
+## Significance of the fixed effects:  
+
+```{r}
+pander(anova(rand10_L_BFGS_B)[-3], style = 'rmarkdown')
+```
+
+## Visualize the model output using fitted values:  
+
+```{r fig.width = 8, fig.height = 7}
+out10 <- data.frame(resilience_soil_non_rm, "Fitted" = fitted(rand10_L_BFGS_B))  
+
+ggplot(out10, 
+       aes(x = day, y = Fitted)) +
+  facet_wrap(~ Region) +
+  geom_smooth(aes(color = treatment, linetype = Farm),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_fill_manual(values = c("blue","red")) +
+  scale_color_manual(values = c("blue","red")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|Region/Farm) + (treatment - 1|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: L-BFGS-B")
+
+ggplot(out10, 
+       aes(x = day, y = Fitted)) +
+  geom_smooth(aes(color = Region, linetype = treatment),
+              method = "lm", se = F, size = 0.8) +
+  theme_minimal() +
+  theme(strip.background = element_rect(),
+        panel.spacing = unit(1, "lines"),
+        legend.title = element_text(face = "bold"),
+        axis.title.x = element_text(size = 11, face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 11, face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 12, face = "bold")) +
+  scale_y_continuous(limits = c(0.4,1.3)) +
+  scale_x_continuous(limits = c(0,64), breaks = c(0,8,16,32,64)) +
+  labs(x = "Days since the end of the simulated drought",
+       title = "soil_moisture_ratio ~ day * treatment + (1|day) + (1|Region/Farm) + (treatment - 1|Region)",
+       subtitle = "lm(fitted data ~ day), optimizer: L-BFGS-B")
+```
+
+# Model comparison  
+
+```{r}
+result <- compare_performance(rand1_nlminb, rand2_nlminb, rand3_nlminb,
+                              rand4, rand5_nlminb, rand6,
+                              rand7_nlminb, rand8_nlminb,
+                              rand9_nlminb, rand10_L_BFGS_B)
+```
+
+## Plot results using package fmsb  
+
+```{r warning = FALSE, message = FALSE, fig.width = 9, fig.height = 5}
+mod_comp <- as.data.frame(result[,c(3,4,6,9)])
+rownames(mod_comp) <- result$Model
+colnames(mod_comp)[which(colnames(mod_comp) == "R2_marginal")] <- "R2_marg"
+
+# Print results
+
+pander(mod_comp, style = 'rmarkdown')
+
+# Change NAs to zero, and multiply AIC and BIC by -1 (for visualization purposes)
+
+mod_comp[is.na(mod_comp)] <- 0 
+mod_comp$AIC <- mod_comp$AIC * -1
+mod_comp$BIC <- mod_comp$BIC * -1
+
+# Add max and min
+
+mod_comp <- rbind(c(max(mod_comp$AIC),max(mod_comp$BIC),
+                    max(mod_comp$R2_marg),max(mod_comp$BF)),
+                  c(min(mod_comp$AIC),min(mod_comp$BIC),
+                    min(mod_comp$R2_marg),min(mod_comp$BF)),
+                  mod_comp)
+
+# Set graphic colors 
+
+colors_border <- colorRampPalette(brewer.pal(8, "Spectral"))(nrow(mod_comp)-2)
+colors_in <- alpha(colors_border,0.2)
+
+# Plot results 
+
+par(mfrow = c(1,2), mar = c(1,0,2,0))
+
+radarchart(mod_comp, axistype = 1,
+           pcol = colors_border , pfcol = colors_in , plwd = 2 , plty = 1,
+           cglcol = "grey", cglty = 2, axislabcol = "grey", 
+           vlcex = 1.4, calcex = 1.2
+)
+
+# Add a legend
+
+plot(NULL,xlim = c(0,1), ylim = c(0,1), axes = F)
+
+legend(x = 0.1, y = 0.5, legend = rownames(mod_comp)[-c(1,2)], bty = "n", pch = 0, 
+       col = colors_border, text.col = "black", cex = 1.4, pt.cex = 3, pt.lwd = 2, yjust = 0.5)
+```
+
+## Plot results for each model separately  
+
+```{r fig.width = 9, fig.height = 9}
+par(mfrow = c(4,3), mar = c(1,2,2,1))
+
+for (i in 1:(nrow(mod_comp)-2)){
+  radarchart(mod_comp[c(1,2,(i+2)),], axistype = 1,
+             pcol = colors_border[i] , pfcol = colors_in[i] , plwd = 2 , plty = 1,
+             cglcol = "grey90", cglty = 2, axislabcol = "grey60", calcex = 1,
+             vlcex = 1, 
+             title = rownames(mod_comp)[i+2], cex.main = 1.2
+  )
+}
+```
