@@ -14,7 +14,7 @@
 ## Maja Ilic (QUB)                                                ##
 ##                                                                ##
 ## First modified: 10 Feb 2020                                    ##
-## Last modified: 02 Apr 2020                                     ##
+## Last modified: 23 Apr 2020                                     ##
 ####################################################################
 
 #===========================================
@@ -307,7 +307,7 @@ g4 <- ggplot(df.sites, aes(x = day, y = BC_meanC_soil)) +
 
 ggsave(paste0(figures.dir,"Invertebrates Bray Curtis soil species V2.png"), g4, width = 10, height = 6)
 
-# Both BC indeces combined (only lines)
+# Both BC indices combined (only lines)
 
 # Panels: Region ~ Farm
 
@@ -428,6 +428,27 @@ om.D <- ggplot(df.drought, aes(x = as.factor(day), y = soil_om, fill = Region, c
 
 ggsave("Soil organic matter - Drought plots.png", om.D, width = 10, height = 7.5)
 
+# Control and Drought plots in one figure
+
+om.plot <- ggplot(df, aes(x = as.factor(day), y = soil_om, fill = Region, color = Region)) +
+  geom_boxplot(outlier.shape = NA, aes(alpha = treatment)) +
+  geom_point(size = 2, shape = 21, aes(alpha = treatment), position = position_dodge(0.75)) +
+  facet_grid(Region ~ Farm) + 
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12, color = "black", face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 12, color = "black", face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 14, face = "bold"),
+        legend.title = element_text(face = "bold")) +
+  scale_alpha_manual(values = c(0.2,0.6), name = "Treatment") +
+  scale_y_continuous(limits = c(0,45)) +
+  labs(x = "Day since the end of the simulated drought", y = "Soil organic matter (%)",
+       title = "Soil organic matter - Control & Drought plots",
+       subtitle = "Outlier in Control plot in Border 2, Day 64, was excluded from plotting")
+
+ggsave("Soil organic matter - All plots.png", om.plot, width = 10, height = 7.75)
+
 # Soil pH
 
 # Control plots
@@ -445,7 +466,8 @@ pH.C <- ggplot(df.control, aes(x = as.factor(day), y = soil_ph, fill = Region, c
         legend.title = element_text(face = "bold")) +
   scale_y_continuous(limits = c(4.9,9.1)) +
   labs(x = "Day since the end of the simulated drought", y = "Soil pH",
-       title = "Soil pH - Control plots")
+       title = "Soil pH - Control plots") +
+  geom_hline(aes(yintercept = 7), linetype = "dashed")
 
 ggsave("Soil pH - Control plots.png", pH.C, width = 10, height = 7.5)
 
@@ -464,9 +486,31 @@ pH.D <- ggplot(df.drought, aes(x = as.factor(day), y = soil_ph, fill = Region, c
         legend.title = element_text(face = "bold")) +
   scale_y_continuous(limits = c(4.9,9.1)) +
   labs(x = "Day since the end of the simulated drought", y = "Soil pH",
-       title = "Soil pH - Drought plots")
+       title = "Soil pH - Drought plots") +
+  geom_hline(aes(yintercept = 7), linetype = "dashed")
 
 ggsave("Soil pH - Drought plots.png", pH.D, width = 10, height = 7.5)
+
+# Control and Drought plots in one figure
+
+pH.plot <- ggplot(df, aes(x = as.factor(day), y = soil_ph, fill = Region, color = Region)) +
+  geom_boxplot(outlier.shape = NA, aes(alpha = treatment)) +
+  geom_point(size = 2, shape = 21, aes(alpha = treatment), position = position_dodge(0.75)) +
+  facet_grid(Region ~ Farm) + 
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title.x = element_text(size = 12, color = "black", face = "bold", margin = margin(15,0,0,0)),
+        axis.title.y = element_text(size = 12, color = "black", face = "bold", margin = margin(0,15,0,0)),
+        plot.title = element_text(size = 14, face = "bold"),
+        legend.title = element_text(face = "bold")) +
+  scale_alpha_manual(values = c(0.2,0.6), name = "Treatment") +
+  scale_y_continuous(limits = c(4.9,9.1)) +
+  labs(x = "Day since the end of the simulated drought", y = "Soil pH",
+       title = "Soil pH - Control & Drought plots") +
+  geom_hline(aes(yintercept = 7), linetype = "dashed")
+
+ggsave("Soil pH - All plots.png", pH.plot, width = 10, height = 7.5)
 
 #======================================
 # Correlate soil organic matter with soil moisture
@@ -483,8 +527,9 @@ df.soil <- left_join(resilience_soil_non_rm[,c("Region","Farm","Plot","treatment
                      df[,c("Region","Farm","Plot","treatment","day","soil_om")],
                      by = c("Region","Farm","Plot","treatment","day"))
 
-g.soil <- ggplot(df.soil,aes(x = Avg.Moisture, y = soil_om, fill = treatment, color = treatment)) +
-  geom_point(stat = "identity", size = 3, shape = 21, alpha = 0.5) +
+g.soil <- ggplot(df.soil,aes(x = Avg.Moisture, y = soil_om)) +
+  geom_point(stat = "identity", size = 3, shape = 21, alpha = 0.5,
+             aes(fill = treatment, color = treatment)) +
   facet_grid(Region ~ Farm) +
   theme_bw() +
   theme(panel.grid = element_blank(),
@@ -493,8 +538,10 @@ g.soil <- ggplot(df.soil,aes(x = Avg.Moisture, y = soil_om, fill = treatment, co
         axis.title.y = element_text(size = 12, color = "black", face = "bold", margin = margin(0,15,0,0)),
         plot.title = element_text(size = 14, face = "bold"),
         legend.title = element_text(face = "bold")) +
-  scale_fill_manual(values = c("red","blue")) +
-  scale_color_manual(values = c("red","blue")) +
-  labs(x = "Average soil moisture (%)", y = "Soil organic matter (%)")
+  scale_fill_manual(values = c("red","blue"), name = "Treatment") +
+  scale_color_manual(values = c("red","blue"), name = "Treatment") +
+  labs(x = "Average soil moisture (%)", y = "Soil organic matter (%)") +
+  geom_smooth(method = "lm", se = F, color = "black", size = 0.8) +
+  geom_smooth(method = "lm", se = F, aes(color = treatment), size = 0.6)
 
 ggsave("Soil moisture vs soil organic matter.png", g.soil, width = 10, height = 7.5) 
